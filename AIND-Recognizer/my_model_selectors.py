@@ -78,22 +78,23 @@ class SelectorBIC(ModelSelector):
 
         # TODO implement model selection based on BIC scores
 
-        min_score = None
-        min_model = None
-        try:
-            for n_components in range(self.min_n_components, self.max_n_components + 1):
-                model = self.base_model(n_components)
+        best_score = float('inf')
+        best_model = None
+        logN = np.log10(sum(self.lengths))
+        for n_components in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                model = GaussianHMM(n_components, covariance_type="diag", n_iter=1000, random_state=self.random_state, verbose=False).fit(self.X, self.lengths)
                 logL = model.score(self.X, self.lengths)
-                p = n_components * (n_components - 1) + 2 * len(self.X[0]) * n_components
-                logN = np.log(len(self.X))
+                p = n_components + n_components * (n_components - 1) + 2 * n_components * self.X.shape[1] 
                 BIC = -2 * logL + p * logN
-                if min_score == None or min_score > BIC:
-                    min_score = BIC
-                    min_model = model
-            return min_model
-        except:
-            return min_model
+            except:
+                continue
+            if best_score > BIC:
+                best_score = BIC
+                best_model = model
+        return best_model
         
+
 
 class SelectorDIC(ModelSelector):
     ''' select best model based on Discriminative Information Criterion
@@ -109,7 +110,8 @@ class SelectorDIC(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection based on DIC scores
-        max_score = None
+        best_score = float('-inf')
+        best_model = None
         for n_components in range(self.min_n_components, self.max_n_components + 1):
             logL = {}
             valid_words = []
@@ -123,8 +125,8 @@ class SelectorDIC(ModelSelector):
                     pass
             try:
                 DIC = logL[self.this_word] - (1 / (len(valid_words) - 1)) * sum([logL[valid] for valid in valid_words if valid != self.this_word])
-                if max_score==None or DIC > max_score:
-                    max_score = DIC
+                if DIC > best_score:
+                    best_score = DIC
                     best_model = model
             except:
                 best_model = model
@@ -140,25 +142,28 @@ class SelectorCV(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection using CV
-        best_score = None
+        best_score = float('-inf')
         best_model = None
-        split_method = KFold(n_splits=2)
-        if len(self.sequences) > 1:
-            for num_of_components in range(self.min_n_components, self.max_n_components+1):
-                folds = 0
-                sum_of_logL = 0
-                for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
-                    train_X, train_lengths = combine_sequences(cv_train_idx, self.sequences)
-                    test_X, test_lengths = combine_sequences(cv_test_idx, self.sequences)
-                    try:
-                        model = GaussianHMM(n_components=num_of_components, covariance_type="diag", n_iter=1000, random_state=self.random_state, verbose=False).fit(train_X, train_lengths)
-                        sum_of_logL += model.score(test_X, test_lengths)
+        split_method = KFold()
+        
+        for n_components in range(self.min_n_components, self.max_n_components + 1):
+            score = 0
+            folds = 0
+            try:
+                if len(self.sequences) > 2:
+                    for train_i, test_i in split_method.split(self.sequences):
+                        train_X, train_l = combine_sequences(train_i, self.sequences)
+                        test_X, test_l = combine_sequences(test_i, self.sequences)
+                        model = GaussianHMM(n_components=n_components, covariance_type="diag", n_iter=1000, random_state=self.random_state, verbose=False).fit(train_X, train_l)
+                        score += model.score(test_X, test_l)
                         folds += 1
-                    except:
-                        pass
-                if folds != 0 :
-                    avg_score = sum_of_logL / folds 
-                if best_score == None or avg_score == None or avg_score >= best_score :
+                    avg_score = score / folds
+                else:
+                    model = self.base_model(n_components)
+                    avg_score = model.score(self.X, self.lengths)
+                if avg_score > best_score :
                     best_score = avg_score
                     best_model = model
+            except:
+                pass
         return best_model

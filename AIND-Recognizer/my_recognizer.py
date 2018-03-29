@@ -22,18 +22,14 @@ def recognize(models: dict, test_set: SinglesData):
     guesses = []
     # TODO implement the recognizer
     for i in range(test_set.num_items):
-        best_prob = None
-        best_word = None
-        temp_word_probability = {}
-        temp_sequences, temp_lengths = test_set.get_item_Xlengths(i)
+        word_probability = {}
         for word, model in models.items():
             try:
-                temp_word_probability[word] = model.score(temp_sequences, temp_lengths)
+              sequences, lengths = test_set.get_item_Xlengths(i)
+              best_prob = model.score(sequences, lengths)
             except:
-                temp_word_probability[word] = None
-            if(best_prob == None or temp_word_probability[word] == None or temp_word_probability[word] > best_prob):
-                best_prob, best_word = temp_word_probability[word], word
-            continue
-        probabilities.append(temp_word_probability)
-        guesses.append(best_word)
+                best_prob = float("-inf")
+            word_probability[word] = best_prob
+        probabilities.append(word_probability)
+        guesses.append(max(word_probability, key=word_probability.get))
     return probabilities, guesses
