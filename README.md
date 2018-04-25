@@ -1,3 +1,3 @@
-# artificial_intelligence_and_specializations.udacity
+# artificial_intelligence.udacity
 
-Udacity Artificial Intelligence and Specializations
+Udacity Artificial Intelligence
